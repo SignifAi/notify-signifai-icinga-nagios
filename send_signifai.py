@@ -51,8 +51,8 @@ def POST_data(auth_key, data,
     retries = 0
     while client is None and retries < attempts:
         try:
-            client = httpsconn(host=signifai_host, 
-                               port=signifai_port, 
+            client = httpsconn(host=signifai_host,
+                               port=signifai_port,
                                timeout=timeout)
         except http_client.HTTPException as http_exc:
             # uh, if we can't even create the object, we're toast
@@ -84,11 +84,10 @@ def POST_data(auth_key, data,
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
-        req = None
         res = None
         try:
-            req = client.request("POST", signifai_uri, body=json.dumps(data),
-                                 headers=headers)
+            client.request("POST", signifai_uri, body=json.dumps(data),
+                           headers=headers)
         except socket.timeout:
             # ... don't think we should retry the POST
             log.fatal("POST timed out...?")
@@ -115,12 +114,14 @@ def POST_data(auth_key, data,
                 log.fatal("Didn't receive valid JSON response from collector")
                 return False
             except IOError:
-                log.fatal("Couldn't read response from collector", exc_info=True)
+                log.fatal("Couldn't read response from collector",
+                          exc_info=True)
             else:
-                if (not collector_response['success'] or 
-                    collector_response['failed_events']):
+                if (not collector_response['success'] or
+                        collector_response['failed_events']):
+                    errs = collector_response['failed_events']
                     log.fatal("Errors submitting events: {errs}"
-                              .format(errs=collector_response['failed_events']))
+                              .format(errs=errs))
                     # not really False but not really True
                     return None
                 else:
@@ -173,10 +174,10 @@ def parse_opts(argv=None):
                       default=None)
 
     parser.add_option("-o", "--output",
-                       help="The check output (preferably $*OUTPUT$ + "
-                            "$*LONGOUTPUT$)",
-                       action="store", dest="check_output", type=str,
-                       default=None)
+                      help="The check output (preferably $*OUTPUT$ + "
+                           "$*LONGOUTPUT$)",
+                      action="store", dest="check_output", type=str,
+                      default=None)
 
     parser.add_option("-k", "--auth-key",
                       help="The SignifAi auth key for the collector API",
@@ -212,7 +213,7 @@ def parse_opts(argv=None):
             return (None, None)
 
         if (options.target_state.upper() not in ICINGIOS_SERVICE_STATES or
-            options.target_state.upper() not in ICINGIOS_HOST_STATES):
+                options.target_state.upper() not in ICINGIOS_HOST_STATES):
             log.fatal("Invalid state specified")
             return (None, None)
         else:
@@ -220,13 +221,13 @@ def parse_opts(argv=None):
     else:
         try:
             if options.service_name is None:
-                options.target_state = ICINGIOS_HOST_STATES[options.target_state]
+                target_state = ICINGIOS_HOST_STATES[options.target_state]
             else:
-                options.target_state = ICINGIOS_SERVICE_STATES[options.target_state]
+                target_state = ICINGIOS_SERVICE_STATES[options.target_state]
+            options.target_state = target_state
         except IndexError:
             # rip
             options.target_state = "UNKNOWN"
-
 
     if not options.hostname:
         log.fatal("No/invalid hostname specified")
@@ -236,18 +237,23 @@ def parse_opts(argv=None):
         # Fill out the output from environment variables then if we can
         if options.service_name is None:
             # host output
-            options.check_output = (icingios_get_env("HOSTOUTPUT", "") + 
-                icingios_get_env("LONGHOSTOUTPUT", ""))
+            options.check_output = (icingios_get_env("HOSTOUTPUT", "") +
+                                    icingios_get_env("LONGHOSTOUTPUT", ""))
         else:
             # service output
             options.check_output = (icingios_get_env("SERVICEOUTPUT", "") +
-                icingios_get_env("LONGSERVICEOUTPUT", ""))
+                                    icingios_get_env("LONGSERVICEOUTPUT", ""))
 
     if options.bugsnag_key:
         if bugsnag:
+            project_root = os.path.abspath(
+                os.path.join(
+                    os.path.dirname(__file__)
+                )
+            )
             bugsnag.configure(
                 api_key=options.bugsnag_key,
-                project_root=os.path.abspath(os.path.join(os.path.dirname(__file__)))
+                project_root=project_root
             )
         else:
             log.warning("Couldn't initialize bugsnag: bugsnag not present")
@@ -255,9 +261,8 @@ def parse_opts(argv=None):
     return (options, args)
 
 
-
 def main(argv=sys.argv):
-    prog_name = argv.pop(0)
+    argv.pop(0)
 
     oplog = logging.getLogger("option_parser")
     oplog.setLevel(20)
@@ -326,5 +331,5 @@ def main(argv=sys.argv):
     pass
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     sys.exit(main())
