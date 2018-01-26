@@ -15,6 +15,11 @@ import time
 import unittest
 
 
+__author__ = "SignifAI, Inc."
+__copyright__ = "Copyright (C) 2018, SignifAI, Inc."
+__version__ = "1.0"
+
+
 class BaseHTTPSRespMock(object):
     def __init__(self, data, status=200):
         self.readData = data

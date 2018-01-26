@@ -24,6 +24,9 @@ import socket
 import sys
 import time
 
+__author__ = "SignifAI, Inc."
+__copyright__ = "Copyright (C) 2018, SignifAI, Inc."
+__version__ = "1.0"
 
 DEFAULT_POST_URI = "/v1/incidents"
 
