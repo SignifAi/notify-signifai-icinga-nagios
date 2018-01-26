@@ -327,6 +327,7 @@ class TestHTTPPost(unittest.TestCase):
 
 
 class TestOptionParse(unittest.TestCase):
+
     def _do_test_envs(self, option_name, base_args, *envs):
         test_str = "TEST_STRING"
         test_str2 = "SHOULD_NEVER_BE"
@@ -404,6 +405,36 @@ class TestOptionParse(unittest.TestCase):
         opts, _ = send_signifai.parse_opts(args)
         self.assertEqual(opts.check_output, "")
         self.assertIsNotNone(opts.check_output, "")
+
+    def test_output_env_fallback(self):
+        TEST_BASE_OUTPUT = "summary line"
+        TEST_LONG_OUTPUT = "extended information"
+        prefixes = {
+            "SERVICE": ["-S", "fake_service", "-s", "CRITICAL",
+                        "-k", "fake_key", "-H", "fake_host"],
+            "HOST": ["-H", "fake_host", "-s", "CRITICAL",
+                     "-k", "fake_key"]
+        }
+
+        for prefix, args in prefixes.iteritems():
+            for envkey in ("ICINGA_", "NAGIOS_", ""):
+                # XXX: the only thing this doesn't cover is
+                #      when ICINGA_ and NAGIOS_ env variables are
+                #      intermixed; if that's ever the case, ICINGA_
+                #      will take precedence, but we don't cover it
+                #      (even though the other test does) because it's
+                #      sort of pathological.
+                envsummary = ("{envkey}{prefix}OUTPUT"
+                              .format(envkey=envkey, prefix=prefix))
+                envlong = ("{envkey}LONG{prefix}OUTPUT"
+                           .format(envkey=envkey, prefix=prefix))
+                os.environ[envsummary] = TEST_BASE_OUTPUT
+                os.environ[envlong] = TEST_LONG_OUTPUT
+                opts, _ = send_signifai.parse_opts(args)
+                expected = str.join("\n", [TEST_BASE_OUTPUT, TEST_LONG_OUTPUT])
+                self.assertEqual(opts.check_output, expected)
+                del os.environ[envsummary]
+                del os.environ[envlong]
 
 
 if __name__ == "__main__":

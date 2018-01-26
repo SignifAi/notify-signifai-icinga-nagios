@@ -139,7 +139,7 @@ def try_get_env(*possibilities):
     value = None
     for which in possibilities:
         try:
-            value = os.environ[which]
+            value = os.environ[which].strip()
         except KeyError:
             pass
         else:
@@ -231,6 +231,26 @@ def parse_opts(argv=None):
         except IndexError:
             # rip
             options.target_state = "UNKNOWN"
+    finally:
+        # Make states agree with check type
+        if (options.target_state in ICINGIOS_HOST_STATES and
+                options.service_name):
+            # UP is akin to OK, DOWN is akin to CRITICAL
+            host2svcmap = {
+                "UP": "OK",
+                "DOWN": "CRITICAL"
+            }
+            options.target_state = host2svcmap[options.target_state]
+        elif (options.target_state in ICINGIOS_SERVICE_STATES and
+                not options.service_name):
+            # OK is akin to UP, everything else is akin to DOWN
+            svc2hostmap = {
+                "OK": "UP",
+                "WARNING": "DOWN",
+                "CRITICAL": "DOWN",
+                "UNKNOWN": "DOWN"
+            }
+            options.target_state = svc2hostmap[options.target_state]
 
     if not options.hostname:
         log.fatal("No/invalid hostname specified")
@@ -241,11 +261,14 @@ def parse_opts(argv=None):
         if options.service_name is None:
             # host output
             options.check_output = (icingios_get_env("HOSTOUTPUT", "") +
+                                    "\n" +
                                     icingios_get_env("LONGHOSTOUTPUT", ""))
         else:
             # service output
             options.check_output = (icingios_get_env("SERVICEOUTPUT", "") +
+                                    "\n" +
                                     icingios_get_env("LONGSERVICEOUTPUT", ""))
+        options.check_output = options.check_output.strip()
 
     if options.bugsnag_key:
         if bugsnag:
