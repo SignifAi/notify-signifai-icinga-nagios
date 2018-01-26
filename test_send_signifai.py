@@ -9,10 +9,8 @@ except ImportError:
 
 import json
 import logging
-import os
 import send_signifai
 import socket
-import sys
 import time
 import unittest
 
@@ -43,7 +41,7 @@ class BaseHTTPSConnMock(object):
     def getresponse(self):
         # e.g. try throwing IOError,
         #      returning bad JSON, etc.
-        return BaseHTTPSMock("")
+        return BaseHTTPSRespMock("")
 
     def request(self, *args, **kwargs):
         # e.g. try throwing timeout
@@ -65,34 +63,35 @@ class TestHTTPPost(unittest.TestCase):
         hplog = logging.getLogger("http_post")
         hplog.setLevel(100)
 
-
     # Connection failure handling tests
     #   - Connection initialization
     def test_post_bad_host(self):
         # Should return False, NOT throw
         # (don't use a mock for this, it should never touch the collector)
         result = send_signifai.POST_data(auth_key="", data=self.events,
-                                         signifai_host="cantresolve.signifai.io")
+                                         signifai_host="noresolve.signifai.io")
         self.assertFalse(result)
 
     def test_create_exception(self):
         # Should return False
         class AlwaysThrow(BaseHTTPSConnMock):
             retries = 0
+
             def __init__(self, *args, **kwargs):
                 self.__class__.retries += 1
                 raise http_client.HTTPException()
+
         result = send_signifai.POST_data(auth_key="", data=self.events,
                                          httpsconn=AlwaysThrow)
         self.assertFalse(result)
         # Ensure we don't attempt a retry
         self.assertEqual(AlwaysThrow.retries, 1)
 
-
     def test_connect_exception(self):
         # Should return False
         class AlwaysThrowOnConnect(BaseHTTPSConnMock):
             retries = 0
+
             def connect(self, *args, **kwargs):
                 self.__class__.retries += 1
                 raise http_client.HTTPException()
@@ -103,7 +102,6 @@ class TestHTTPPost(unittest.TestCase):
         # Ensure we don't attempt a retry
         self.assertEqual(AlwaysThrowOnConnect.retries, 1)
 
-
     #   - Retry mechanism
     def test_connect_retries_fail(self):
         # Should return False
@@ -111,6 +109,7 @@ class TestHTTPPost(unittest.TestCase):
 
         class AlwaysTimeout(BaseHTTPSConnMock):
             retry_count = 0
+
             def __init__(self, *args, **kwargs):
                 super(self.__class__, self).__init__(*args, **kwargs)
 
@@ -127,7 +126,6 @@ class TestHTTPPost(unittest.TestCase):
                                          httpsconn=AlwaysTimeout)
         self.assertFalse(result)
         self.assertEqual(AlwaysTimeout.retry_count, total_retries)
-
 
     def test_connect_retries_can_succeed(self):
         # Should return True
@@ -158,7 +156,6 @@ class TestHTTPPost(unittest.TestCase):
                                          httpsconn=SucceedsAtLast)
         self.assertTrue(result)
 
-
     # Transport failures (requesting, getting response)
     #   - Request timeout
     def test_request_timeout(self):
@@ -166,6 +163,7 @@ class TestHTTPPost(unittest.TestCase):
 
         class RequestTimesOut(BaseHTTPSConnMock):
             retries = 0
+
             def request(self, *args, **kwargs):
                 self.__class__.retries += 1
                 raise socket.timeout
@@ -175,13 +173,13 @@ class TestHTTPPost(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual(RequestTimesOut.retries, 1)
 
-
     #   - Misc. request error
     def test_request_httpexception(self):
         # Should return False, NOT throw
 
         class RequestThrows(BaseHTTPSConnMock):
             retries = 0
+
             def request(self, *args, **kwargs):
                 self.__class__.retries += 1
                 raise http_client.HTTPException()
@@ -189,7 +187,6 @@ class TestHTTPPost(unittest.TestCase):
                                          httpsconn=RequestThrows)
         self.assertFalse(result)
         self.assertEqual(RequestThrows.retries, 1)
-
 
     #   - Getresponse timeout
     def test_getresponse_timeout(self):
@@ -203,7 +200,6 @@ class TestHTTPPost(unittest.TestCase):
                                          httpsconn=GetResponseTimesOut)
         self.assertFalse(result)
 
-
     #   - Misc. getresponse failure
     def test_getresponse_httpexception(self):
         # Should return False, NOT throw
@@ -214,21 +210,20 @@ class TestHTTPPost(unittest.TestCase):
 
         result = send_signifai.POST_data(auth_key="", data=self.events,
                                          httpsconn=GetResponseThrows)
-
+        self.assertFalse(result)
 
     #   - Server error
     def test_post_bad_status(self):
         # Should return False, NOT throw
 
         class BadStatus(BaseHTTPSConnMock):
-            def getresponse(self): 
-                return BaseHTTPSRespMock("500 Internal Server Error", 
+            def getresponse(self):
+                return BaseHTTPSRespMock("500 Internal Server Error",
                                          status=500)
 
         result = send_signifai.POST_data(auth_key="", data=self.events,
                                          httpsconn=BadStatus)
         self.assertFalse(result)
-
 
     # Data correctness failures (all other operations being successful,
     # but the server returned an error/failed event)
@@ -250,7 +245,6 @@ class TestHTTPPost(unittest.TestCase):
         result = send_signifai.POST_data(auth_key="", data=self.events,
                                          httpsconn=BadContent)
         self.assertIsNone(result)
-
 
     #   - Only some events fail (we treat that as a whole failure)
     def test_post_somebad_somegood(self):
@@ -274,7 +268,6 @@ class TestHTTPPost(unittest.TestCase):
         result = send_signifai.POST_data(auth_key="", data=events,
                                          httpsconn=ReturnsPartialBad)
         self.assertIsNone(result)
-
 
     #   - Ensure request is made as expected based on parameters
     def test_post_request_generation(self):
@@ -326,5 +319,6 @@ class TestHTTPPost(unittest.TestCase):
                                          httpsconn=SucceedsToPOST)
         self.assertTrue(result)
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     unittest.main()
