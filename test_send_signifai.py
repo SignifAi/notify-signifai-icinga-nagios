@@ -2,7 +2,6 @@
 
 from __future__ import absolute_import
 
-import functools
 try:
     import http.client as http_client
 except ImportError:
@@ -13,7 +12,6 @@ import logging
 import os
 import send_signifai
 import socket
-import sys
 import time
 import unittest
 
@@ -329,13 +327,52 @@ class TestHTTPPost(unittest.TestCase):
 
 
 class TestOptionParse(unittest.TestCase):
+    def _do_test_envs(self, option_name, base_args, *envs):
+        test_str = "TEST_STRING"
+        test_str2 = "SHOULD_NEVER_BE"
+
+        for i in range(0, len(envs)-1):
+            os.environ[envs[i]] = test_str
+            os.environ[envs[i+1]] = test_str2
+            opts, _ = send_signifai.parse_opts(base_args)
+            self.assertEqual(getattr(opts, option_name), test_str)
+            self.assertNotEqual(getattr(opts, option_name), test_str2)
+            del os.environ[envs[i]]
+            del os.environ[envs[i+1]]
+
+        os.environ[envs[-1]] = test_str
+        opts, _ = send_signifai.parse_opts(base_args)
+        del os.environ[envs[-1]]
+        self.assertEqual(getattr(opts, option_name), test_str)
+
+    def test_hostname_env_fallbacks(self):
+        args = ["-s", "CRITICAL", "-o", "fake_output", "-k", "fake_key"]
+        self._do_test_envs('hostname', args, "ICINGA_HOSTNAME",
+                           "NAGIOS_HOSTNAME", "HOSTNAME")
+
     def test_no_host_fails(self):
         args = ["-S", "servicename", "-s", "CRITICAL", "-o", "fake output",
                 "-k", "fake_key"]
 
         self.assertEquals(send_signifai.parse_opts(args), (None, None))
 
+    def test_servicename_env_fallbacks(self):
+        args = ["-H", "aHostname", "-o", "fake_output", "-k", "fake_key",
+                "-s", "CRITICAL"]
+        self._do_test_envs('service_name', args, "ICINGA_SERVICEDESC",
+                           "NAGIOS_SERVICEDESC", "SERVICEDESC")
+
+    def test_no_service_means_None(self):
+        # Must set the service_name to None, which will in turn
+        # handle the output as a host check result
+        args = ["-H", "aHostname", "-o", "fake_output", "-k", "fake_key",
+                "-s", "CRITICAL"]
+
+        opts, _ = send_signifai.parse_opts(args)
+        self.assertIsNone(opts.service_name)
+
     def test_service_state_int_aliasing(self):
+        # Must translate the state index to CRITICAL
         args = ["-S", "fake_service", "-s", "2", "-o", "fake output",
                 "-k", "fake_key", "-H", "fake_host"]
 
@@ -343,6 +380,7 @@ class TestOptionParse(unittest.TestCase):
         self.assertEquals(opts.target_state, "CRITICAL")
 
     def test_service_state_valid_name(self):
+        # Must allow CRITICAL to work
         args = ["-S", "fake_service", "-s", "CRITICAL", "-o", "fake output",
                 "-k", "fake_key", "-H", "fake_host"]
 
@@ -350,10 +388,22 @@ class TestOptionParse(unittest.TestCase):
         self.assertEquals(opts.target_state, "CRITICAL")
 
     def test_service_state_invalid_name(self):
+        # Must totally fail
         args = ["-S", "fake_service", "-s", "BEEPBOOP", "-o", "fake output",
                 "-k", "fake_key", "-H", "fake_host"]
 
+        # Looks like this test will actually run this function three
+        # times for some reason...
         self.assertEquals(send_signifai.parse_opts(args), (None, None))
+
+    def test_no_output_means_empty(self):
+        # Must be an empty string and NOT None
+        args = ["-S", "fake_service", "-s", "CRITICAL",
+                "-k", "fake_key", "-H", "fake_host"]
+
+        opts, _ = send_signifai.parse_opts(args)
+        self.assertEqual(opts.check_output, "")
+        self.assertIsNotNone(opts.check_output, "")
 
 
 if __name__ == "__main__":
