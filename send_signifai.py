@@ -210,12 +210,12 @@ def parse_opts(argv=None):
 
     try:
         options.target_state = int(options.target_state)
-    except TypeError:
+    except (TypeError, ValueError):
         if options.target_state is None:
             log.fatal("No state specified")
             return (None, None)
 
-        if (options.target_state.upper() not in ICINGIOS_SERVICE_STATES or
+        if (options.target_state.upper() not in ICINGIOS_SERVICE_STATES and
                 options.target_state.upper() not in ICINGIOS_HOST_STATES):
             log.fatal("Invalid state specified")
             return (None, None)

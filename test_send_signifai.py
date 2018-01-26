@@ -2,6 +2,7 @@
 
 from __future__ import absolute_import
 
+import functools
 try:
     import http.client as http_client
 except ImportError:
@@ -9,8 +10,10 @@ except ImportError:
 
 import json
 import logging
+import os
 import send_signifai
 import socket
+import sys
 import time
 import unittest
 
@@ -323,6 +326,34 @@ class TestHTTPPost(unittest.TestCase):
         result = send_signifai.POST_data(auth_key="", data=self.events,
                                          httpsconn=SucceedsToPOST)
         self.assertTrue(result)
+
+
+class TestOptionParse(unittest.TestCase):
+    def test_no_host_fails(self):
+        args = ["-S", "servicename", "-s", "CRITICAL", "-o", "fake output",
+                "-k", "fake_key"]
+
+        self.assertEquals(send_signifai.parse_opts(args), (None, None))
+
+    def test_service_state_int_aliasing(self):
+        args = ["-S", "fake_service", "-s", "2", "-o", "fake output",
+                "-k", "fake_key", "-H", "fake_host"]
+
+        opts, _ = send_signifai.parse_opts(args)
+        self.assertEquals(opts.target_state, "CRITICAL")
+
+    def test_service_state_valid_name(self):
+        args = ["-S", "fake_service", "-s", "CRITICAL", "-o", "fake output",
+                "-k", "fake_key", "-H", "fake_host"]
+
+        opts, _ = send_signifai.parse_opts(args)
+        self.assertEquals(opts.target_state, "CRITICAL")
+
+    def test_service_state_invalid_name(self):
+        args = ["-S", "fake_service", "-s", "BEEPBOOP", "-o", "fake output",
+                "-k", "fake_key", "-H", "fake_host"]
+
+        self.assertEquals(send_signifai.parse_opts(args), (None, None))
 
 
 if __name__ == "__main__":
