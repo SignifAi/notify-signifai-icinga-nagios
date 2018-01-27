@@ -29,6 +29,12 @@ __copyright__ = "Copyright (C) 2018, SignifAI, Inc."
 __version__ = "1.0"
 
 DEFAULT_POST_URI = "/v1/incidents"
+ICINGIOS2PRI = {
+    "WARNING": "medium",
+    "CRITICAL": "critical",
+    "DOWN": "critical",
+    "UNKNOWN": "critical"
+}
 
 
 def bugsnag_notify(exception, metadata, log=None):
@@ -287,24 +293,7 @@ def parse_opts(argv=None):
     return (options, args)
 
 
-def main(argv=sys.argv):
-    argv.pop(0)
-
-    oplog = logging.getLogger("option_parser")
-    oplog.setLevel(20)
-    oplog.addHandler(logging.StreamHandler(sys.stdout))
-    (options, args) = parse_opts(argv)
-
-    if options is None:
-        return 1
-
-    ICINGIOS2PRI = {
-        "WARNING": "medium",
-        "CRITICAL": "critical",
-        "DOWN": "critical",
-        "UNKNOWN": "critical"
-    }
-
+def generate_REST_payload(options):
     REST_target = {
         "event_source": "icinga",
         "timestamp": int(time.time()),
@@ -312,6 +301,9 @@ def main(argv=sys.argv):
         "event_description": options.check_output,
         "attributes": {}
     }
+    if options.service_name:
+        REST_target['application'] = options.service_name
+
     REST_events = {"events": []}
 
     if options.target_state in ("OK", "UP"):
@@ -340,10 +332,23 @@ def main(argv=sys.argv):
     else:
         REST_target['value'] = ICINGIOS2PRI[options.target_state]
         REST_target['attributes']['state'] = "alarm"
-        if options.service_name:
-            REST_target['service'] = options.service_name
 
     REST_events['events'].append(REST_target)
+    return REST_events
+
+
+def main(argv=sys.argv):
+    argv.pop(0)
+
+    oplog = logging.getLogger("option_parser")
+    oplog.setLevel(20)
+    oplog.addHandler(logging.StreamHandler(sys.stdout))
+    (options, args) = parse_opts(argv)
+
+    if options is None:
+        return 1
+
+    REST_events = generate_REST_payload(options)
 
     postlog = logging.getLogger("http_post")
     postlog.setLevel(20)

@@ -7,6 +7,7 @@ try:
 except ImportError:
     import httplib as http_client
 
+import functools
 import json
 import logging
 import os
@@ -354,7 +355,7 @@ class TestOptionParse(unittest.TestCase):
         args = ["-S", "servicename", "-s", "CRITICAL", "-o", "fake output",
                 "-k", "fake_key"]
 
-        self.assertEquals(send_signifai.parse_opts(args), (None, None))
+        self.assertEqual(send_signifai.parse_opts(args), (None, None))
 
     def test_servicename_env_fallbacks(self):
         args = ["-H", "aHostname", "-o", "fake_output", "-k", "fake_key",
@@ -377,7 +378,7 @@ class TestOptionParse(unittest.TestCase):
                 "-k", "fake_key", "-H", "fake_host"]
 
         opts, _ = send_signifai.parse_opts(args)
-        self.assertEquals(opts.target_state, "CRITICAL")
+        self.assertEqual(opts.target_state, "CRITICAL")
 
     def test_service_state_valid_name(self):
         # Must allow CRITICAL to work
@@ -385,7 +386,7 @@ class TestOptionParse(unittest.TestCase):
                 "-k", "fake_key", "-H", "fake_host"]
 
         opts, _ = send_signifai.parse_opts(args)
-        self.assertEquals(opts.target_state, "CRITICAL")
+        self.assertEqual(opts.target_state, "CRITICAL")
 
     def test_service_state_invalid_name(self):
         # Must totally fail
@@ -394,7 +395,7 @@ class TestOptionParse(unittest.TestCase):
 
         # Looks like this test will actually run this function three
         # times for some reason...
-        self.assertEquals(send_signifai.parse_opts(args), (None, None))
+        self.assertEqual(send_signifai.parse_opts(args), (None, None))
 
     def test_no_output_means_empty(self):
         # Must be an empty string and NOT None
@@ -416,7 +417,7 @@ class TestOptionParse(unittest.TestCase):
         }
         mon_prefixes = ("ICINGA_", "NAGIOS_", "")
 
-        for prefix, args in target_prefixes.iteritems():
+        for prefix, args in target_prefixes.items():
             for envkey in mon_prefixes:
                 for envkey2 in mon_prefixes:
                     envsummary = ("{envkey}{prefix}OUTPUT"
@@ -431,6 +432,138 @@ class TestOptionParse(unittest.TestCase):
                     self.assertEqual(opts.check_output, expected)
                     del os.environ[envsummary]
                     del os.environ[envlong]
+
+
+def args_test(func):
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        va_args = func(self, *args, **kwargs)
+
+        opts = self._generate_options(*va_args)
+
+        result = send_signifai.generate_REST_payload(opts)
+
+        if opts.target_state == "UNKNOWN":
+            self._assert_unknown_handling(opts, result['events'])
+        else:
+            self.assertEqual(len(result['events']), 1)
+            event = result['events'][0]
+            self._assert_static_fills(opts, event)
+            self._assert_concrete_state_translation(opts.target_state, event)
+    return wrapper
+
+
+class TestPayloadGeneration(unittest.TestCase):
+    def _generate_options(self, *args):
+        opts, _ = send_signifai.parse_opts(list(args))
+        self.assertNotEqual(opts, (None, None))
+        return opts
+
+    STATES_TRANSLATION = {
+       "OK": {
+           "value": "low",
+           "state": "ok"
+       },
+       "WARNING": {
+           "value": "medium",
+           "state": "alarm"
+       },
+       "CRITICAL": {
+           "value": "critical",
+           "state": "alarm"
+       },
+       "UP": {
+           "value": "low",
+           "state": "ok"
+       },
+       "DOWN": {
+           "value": "critical",
+           "state": "alarm"
+       }
+    }
+
+    def _assert_concrete_state_translation(self, state, event):
+        expected = self.STATES_TRANSLATION[state]
+        self.assertEqual(event['value'], expected['value'])
+        self.assertEqual(event['attributes']['state'], expected['state'])
+
+    def _assert_static_fills(self, options, event):
+        self.assertEqual(event['host'], options.hostname)
+        self.assertEqual(event['event_description'], options.check_output)
+        if options.service_name:
+            self.assertEqual(event['application'], options.service_name)
+
+    def _assert_unknown_handling(self, options, events):
+        if options.critical_unknowns:
+            target_event = events[0]
+        else:
+            self.assertEqual(len(events), 2)
+            host_responsible_event = events[0]
+            target_event = events[1]
+
+            self.assertEqual(host_responsible_event['application'], "icinga")
+            self.assertEqual(host_responsible_event['host'],
+                             socket.gethostname())
+            event_attrs = host_responsible_event['attributes']
+            target_host = event_attrs['application/target/host/name']
+            if options.service_name:
+                target_app = event_attrs['application/target/application/name']
+                target_svc = event_attrs['application/target/service/name']
+            self.assertEqual(target_host, options.hostname)
+            if options.service_name:
+                self.assertEqual(target_app, options.service_name)
+                self.assertEqual(target_svc, options.service_name)
+            self._assert_concrete_state_translation("CRITICAL",
+                                                    host_responsible_event)
+
+        self._assert_concrete_state_translation("CRITICAL", target_event)
+        self._assert_static_fills(options, target_event)
+
+    @args_test
+    def test_host_up(self):
+        return ["-H", "fakehost", "-s", "UP",
+                "-k", "fake_key", "-o", "fake_output"]
+
+    @args_test
+    def test_host_down(self):
+        return ["-H", "fakehost", "-s", "DOWN",
+                "-k", "fake_key", "-o", "fake_output"]
+
+    @args_test
+    def test_host_unknown_normal(self):
+        return ["-H", "fakehost", "-s", "UNKNOWN",
+                "-k", "fake_key", "-o", "fake_output"]
+
+    @args_test
+    def test_host_unknown_as_crit(self):
+        return ["-H", "fakehost", "-s", "UNKNOWN",
+                "-k", "fake_key", "-o", "fake_output", "-U"]
+
+    @args_test
+    def test_service_ok(self):
+        return ["-H", "fakehost", "-S", "fakesvc",
+                "-k", "fake_key", "-s", "OK", "-o", "fake_output"]
+
+    @args_test
+    def test_service_warning(self):
+        return ["-H", "fakehost", "-S", "fakesvc",
+                "-k", "fake_key", "-s", "WARNING", "-o", "fake_output"]
+
+    @args_test
+    def test_service_critical(self):
+        return ["-H", "fakehost", "-S", "fakesvc",
+                "-k", "fake_key", "-s", "CRITICAL", "-o", "fake_output"]
+
+    @args_test
+    def test_service_unknown_normal(self):
+        return ["-H", "fakehost", "-S", "fakesvc",
+                "-k", "fake_key", "-s", "UNKNOWN", "-o", "fake_output"]
+
+    @args_test
+    def test_service_unknown_as_crit(self):
+        return ["-H", "fakehost", "-S", "fakesvc",
+                "-k", "fake_key", "-s", "UNKNOWN", "-o", "fake_output",
+                "-U"]
 
 
 if __name__ == "__main__":
