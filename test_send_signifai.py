@@ -69,6 +69,8 @@ class TestHTTPPost(unittest.TestCase):
     def setUp(self):
         hplog = logging.getLogger("http_post")
         hplog.setLevel(100)
+        bslog = logging.getLogger("bugsnag_unattached_notify")
+        bslog.setLevel(100)
 
     # Connection failure handling tests
     #   - Connection initialization
@@ -328,6 +330,7 @@ class TestHTTPPost(unittest.TestCase):
 
 
 class TestOptionParse(unittest.TestCase):
+
     def _do_test_envs(self, option_name, base_args, *envs):
         test_str = "TEST_STRING"
         test_str2 = "SHOULD_NEVER_BE"

@@ -58,7 +58,17 @@ def POST_data(auth_key, data,
     log = logging.getLogger("http_post")
     client = None
     retries = 0
+    bmd = {
+        "signifai_host": signifai_host,
+        "signifai_port": signifai_port,
+        "signifai_uri": signifai_uri,
+        "timeout": timeout,
+        "retries": retries,
+        "attempts": attempts,
+        "httpsconn_class": httpsconn.__name__
+    }
     while client is None and retries < attempts:
+        bmd['retries'] = retries
         try:
             client = httpsconn(host=signifai_host,
                                port=signifai_port,
@@ -66,6 +76,7 @@ def POST_data(auth_key, data,
         except http_client.HTTPException as http_exc:
             # uh, if we can't even create the object, we're toast
             log.fatal("Couldn't create HTTP connection object", exc_info=True)
+            bugsnag_notify(http_exc, bmd)
             return False
 
         try:
@@ -80,12 +91,14 @@ def POST_data(auth_key, data,
             continue
         except (http_client.HTTPException, socket.error) as http_exc:
             log.fatal("Couldn't connect to SignifAi collector", exc_info=True)
+            bugsnag_notify(http_exc, bmd)
             return False
 
     if client is None and retries == attempts:
         # we expired
         log.fatal("Could not connect successfully after {attempts} attempts"
                   .format(attempts=attempts))
+        bugsnag_notify(socket.timeout, bmd)
         return False
     else:
         headers = {
@@ -93,51 +106,68 @@ def POST_data(auth_key, data,
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
+        bmd['headers'] = headers
         res = None
         try:
             client.request("POST", signifai_uri, body=json.dumps(data),
                            headers=headers)
-        except socket.timeout:
+        except socket.timeout as exc:
             # ... don't think we should retry the POST
             log.fatal("POST timed out...?")
+            bugsnag_notify(exc, bmd)
             return False
         except (http_client.HTTPException, socket.error) as http_exc:
             # nope
             log.fatal("Couldn't POST to SignifAi Collector", exc_info=True)
+            bugsnag_notify(http_exc, bmd)
             return False
 
         try:
             res = client.getresponse()
-        except socket.timeout:
+        except socket.timeout as exc:
             # ... don't think we should retry here
             log.fatal("Response from server timed out...?")
+            bugsnag_notify(exc, bmd)
             return False
         except (http_client.HTTPException, socket.error) as http_exc:
             log.fatal("Couldn't get server response")
+            bugsnag_notify(http_exc, bmd)
             return False
 
         if 200 <= res.status < 300:
+            response_text = None
             try:
+                response_text = res.read()
+                bmd['collector_response'] = response_text
                 collector_response = json.loads(res.read())
-            except (ValueError, json.JSONDecodeError):
+            except (ValueError, json.JSONDecodeError) as exc:
                 log.fatal("Didn't receive valid JSON response from collector")
+                bugsnag_notify(exc, bmd)
                 return False
-            except IOError:
+            except IOError as exc:
                 log.fatal("Couldn't read response from collector",
                           exc_info=True)
+                bugsnag_notify(exc, bmd)
             else:
                 if (not collector_response['success'] or
                         collector_response['failed_events']):
                     errs = collector_response['failed_events']
                     log.fatal("Errors submitting events: {errs}"
                               .format(errs=errs))
+                    # Treat it like a ValueError for bugsnag
+                    bmd['failed_events'] = collector_response['failed_events']
+                    bugsnag_notify(ValueError("errors submitting events"), bmd)
                     # not really False but not really True
                     return None
                 else:
                     return True
         else:
             log.fatal("Received error from SignifAi Collector, body follows: ")
-            log.fatal(res.read())
+            response_text = res.read()
+            bmd['collector_response'] = response_text
+            log.fatal(response_text)
+
+            bugsnag_notify(ValueError("Error from SignifAi collector"), bmd)
             return False
 
 
