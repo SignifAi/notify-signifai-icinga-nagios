@@ -59,6 +59,7 @@ def POST_data(auth_key, data,
     client = None
     retries = 0
     bmd = {
+        "data": data,
         "signifai_host": signifai_host,
         "signifai_port": signifai_port,
         "signifai_uri": signifai_uri,
