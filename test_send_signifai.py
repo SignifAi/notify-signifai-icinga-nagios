@@ -29,7 +29,9 @@ class BaseHTTPSRespMock(object):
 
     def read(self, *args, **kwargs):
         # e.g. throw IOError or socket.timeout
-        return self.readData
+        rd = self.readData
+        self.readData = ""
+        return rd
 
 
 class BaseHTTPSConnMock(object):
@@ -343,7 +345,6 @@ class TestHTTPPost(unittest.TestCase):
 
 
 class TestOptionParse(unittest.TestCase):
-
     def _do_test_envs(self, option_name, base_args, *envs):
         test_str = "TEST_STRING"
         test_str2 = "SHOULD_NEVER_BE"
