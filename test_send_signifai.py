@@ -234,6 +234,19 @@ class TestHTTPPost(unittest.TestCase):
                                          httpsconn=BadStatus)
         self.assertFalse(result)
 
+    #   - Server sent back non-JSON
+    def test_post_bad_response(self):
+        # Should return False, NOT throw
+
+        class BadResponse(BaseHTTPSConnMock):
+            def getresponse(self):
+                return BaseHTTPSRespMock("this is a bad response text",
+                                         status=200)
+
+        result = send_signifai.POST_data(auth_key="", data=self.events,
+                                         httpsconn=BadResponse)
+        self.assertFalse(result)
+
     # Data correctness failures (all other operations being successful,
     # but the server returned an error/failed event)
     #   - All events fail

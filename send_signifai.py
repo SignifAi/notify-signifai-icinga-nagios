@@ -141,7 +141,7 @@ def POST_data(auth_key, data,
                 response_text = res.read()
                 bmd['collector_response'] = response_text
                 collector_response = json.loads(res.read())
-            except (ValueError, json.JSONDecodeError) as exc:
+            except ValueError as exc:
                 log.fatal("Didn't receive valid JSON response from collector")
                 bugsnag_notify(exc, bmd)
                 return False
