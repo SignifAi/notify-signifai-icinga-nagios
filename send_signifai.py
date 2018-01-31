@@ -45,7 +45,11 @@ def bugsnag_notify(exception, metadata, log=None):
         log.warning("Can't notify bugsnag: module not installed!")
         return True
 
-    return bugsnag.notify(exception, metadata)
+    try:
+        bugsnag.notify(exception, meta_data=metadata)
+    except Exception:
+        # just to prevent bugsnag from crashing the script
+        log.warning("Failed to notify bugsnag anyway", exc_info=True)
 
 
 def POST_data(auth_key, data,
