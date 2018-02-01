@@ -7,7 +7,7 @@ incident event to [SignifAI](https://www.signifai.io).
    the API key you get from REST from https://app.signifai.io
 2. Put signifai.cfg in your config directory (or include it
    in your icinga.cfg or nagios.cfg)
-3. SignifAI uses BugSnag to monitor the opearion of the script, in order to set it up, installation of BugSnag is needed by running `pip install bugsnag` and setting up the `-b` flag with the API key provided by SignifAI.
+3. SignifAI optionally uses Bugsnag to monitor the operation of the script. To enable this functionality, install the Bugsnag Python module using `pip install bugsnag` and add the notification key provided by SignifAI with the `-b` flag.
 4. Put send_signifai.py in the directory $USER1$ is set to
    ($USER1$ is typically set by resources.cfg), which is 
    usually where all of your other Icinga/Nagios plugins
