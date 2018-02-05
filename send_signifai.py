@@ -33,7 +33,7 @@ ICINGIOS2PRI = {
     "WARNING": "medium",
     "CRITICAL": "critical",
     "DOWN": "critical",
-    "UNKNOWN": "critical"
+    "UNKNOWN": "low"
 }
 
 
@@ -359,10 +359,10 @@ def generate_REST_payload(options):
             REST_host['attributes'][APPLICATION_NAME] = options.service_name
             REST_host['attributes'][SERVICE_NAME] = options.service_name
 
-        REST_host['value'] = "critical"
+        REST_host['value'] = ICINGIOS2PRI[options.target_state]
         REST_events['events'].append(REST_host)
 
-        REST_target['value'] = "critical"
+        REST_target['value'] = ICINGIOS2PRI[options.target_state]
         REST_target['attributes']['state'] = "alarm"
     else:
         REST_target['value'] = ICINGIOS2PRI[options.target_state]

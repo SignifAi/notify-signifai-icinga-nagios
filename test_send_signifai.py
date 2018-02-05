@@ -496,6 +496,10 @@ class TestPayloadGeneration(unittest.TestCase):
        "DOWN": {
            "value": "critical",
            "state": "alarm"
+       },
+       "UNKNOWN": {
+           "value": "low",
+           "state": "alarm"
        }
     }
 
@@ -530,10 +534,10 @@ class TestPayloadGeneration(unittest.TestCase):
             if options.service_name:
                 self.assertEqual(target_app, options.service_name)
                 self.assertEqual(target_svc, options.service_name)
-            self._assert_concrete_state_translation("CRITICAL",
+            self._assert_concrete_state_translation("UNKNOWN",
                                                     host_responsible_event)
 
-        self._assert_concrete_state_translation("CRITICAL", target_event)
+        self._assert_concrete_state_translation("UNKNOWN", target_event)
         self._assert_static_fills(options, target_event)
 
     @args_test
