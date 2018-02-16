@@ -4,9 +4,10 @@ incident event to [SignifAI](https://www.signifai.io).
 ## Installation
 
 1. Depending on Icinga/Nagios version:
-   1. v1 or Nagios: Update the API_KEY in the configuration (icinga/signifai.cfg) 
-      to the API key you get from REST from https://app.signifai.io and the
-      BUGSNAG_KEY to the key you get from SignifAI 
+   1. v1 or Nagios: Update the API_KEY in the configuration 
+      (icinga/signifai.cfg) to the API key you get from REST from 
+      https://app.signifai.io and the BUGSNAG_KEY to the key you get from 
+      SignifAI 
    2. v2: Update the signifai_api_key and signifai_bugsnag_key variables in 
       the "signifai" User object in icinga2/signifai.conf to the API key you 
       get from REST and the bugsnag key you get from SignifAI, respectively
