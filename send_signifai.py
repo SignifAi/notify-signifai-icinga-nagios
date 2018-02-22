@@ -340,6 +340,7 @@ def generate_REST_payload(options):
         REST_target['application'] = options.service_name
 
     REST_events = {"events": []}
+    monitoring_host = socket.gethostname()
 
     if options.target_state in ("OK", "UP"):
         REST_target['value'] = "low"
@@ -347,7 +348,7 @@ def generate_REST_payload(options):
     elif options.target_state == "UNKNOWN" and not options.critical_unknowns:
         # Create and append
         REST_host = deepcopy(REST_target)
-        REST_host['host'] = socket.gethostname()
+        REST_host['host'] = monitoring_host
         REST_host['application'] = "icinga"
         REST_host['attributes'] = {
             "application/target/host/name": options.hostname,
@@ -367,6 +368,7 @@ def generate_REST_payload(options):
     else:
         REST_target['value'] = ICINGIOS2PRI[options.target_state]
         REST_target['attributes']['state'] = "alarm"
+    REST_target['attributes']['alert/monitoring_host'] = monitoring_host
 
     REST_events['events'].append(REST_target)
     return REST_events
