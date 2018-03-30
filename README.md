@@ -1,3 +1,9 @@
+# License
+
+This project is licensed under Apache Software License version 2. Please see
+LICENSE for details.
+
+---
 This script plugs into Icinga v1, v2 and Nagios and sends an
 incident event to [SignifAI](https://www.signifai.io).
 
